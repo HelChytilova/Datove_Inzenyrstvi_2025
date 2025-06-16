@@ -1,0 +1,61 @@
+create or replace view moonlit-album-339015.L3.L3_contract as
+select
+contract_id,
+branch_id,
+contract_valid_from,
+contract_valid_to,
+extract(YEAR from contract_valid_from) as start_year_of_contract,
+case 
+    when date_diff(contract_valid_to,contract_valid_from, day)/365 <= 0.5 then "less than half year"
+    when date_diff(contract_valid_to,contract_valid_from, day)/365 >0.5 and date_diff(contract_valid_to,contract_valid_from, day)/365<=1 then "1 year"
+     when date_diff(contract_valid_to,contract_valid_from, day)/365 >1 and date_diff(contract_valid_to,contract_valid_from, day)/365<=2 then "2 years"
+     else "more than 2 years"
+end as contract_duration,
+activation_process_date,
+registration_end_reason,
+flag_prolongation,
+contract_status
+from moonlit-album-339015.L2.L2_contract
+where contract_valid_to is not null and contract_valid_from is not null
+and contract_valid_from<contract_valid_to;
+
+
+create or replace view moonlit-album-339015.L3.L3_invoice as
+select
+Invoice_id,
+Contract_id,
+Invoice_type,
+amount_w_vat,
+return_w_vat,
+Amount_wo_vat,
+amount_w_vat - return_w_vat as total_usd_paid
+from moonlit-album-339015.L2.L2_invoice
+;
+
+
+create or replace view moonlit-album-339015.L3.L3_product_purchase as
+select
+pp1.product_purchase_id,
+pp1.product_id,
+pp1.contract_id,
+pp1.product_category,
+pp1.product_status,
+price_w_vat,
+pp1.price_wo_vat,
+flag_unlimited_product,
+pp1.product_valid_from,
+pp1.product_valid_to,
+pp1.unit,
+pp1.product_name,
+pp1.product_type,
+pp1.create_date,
+pp1.date_update
+from moonlit-album-339015.L2.L2_product_purchase pp1;
+
+create or replace view moonlit-album-339015.L3.L3_branch as
+select
+branch_id,
+branch_name
+from moonlit-album-339015.L2.L2_branch;
+
+

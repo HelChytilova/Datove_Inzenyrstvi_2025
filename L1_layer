@@ -1,0 +1,132 @@
+
+/*****************source L0_google_sheets********************/
+CREATE OR REPLACE VIEW  moonlit-album-339015.L1.L1_branch AS
+SELECT
+CAST(id_branch as INT) AS branch_id --pk
+,branch_name as branch_name
+,DATE(TIMESTAMP(PARSE_DATE('%m/%d/%Y', date_update)),"Europe/Prague") AS update_date
+FROM moonlit-album-339015.L0_google_sheets.L0_branch
+where id_branch is not null
+and id_branch!="NULL";
+
+CREATE OR REPLACE VIEW moonlit-album-339015.L1.L1_status AS
+SELECT 
+CAST(id_status as INT) as status_id --pk
+,LOWER(status_name) as status_name
+,DATE(TIMESTAMP(date_update),"Europe/Prague") as status_update_date
+FROM 
+moonlit-album-339015.L0_google_sheets.L0_status
+where id_status is not null
+and status_name is not null
+qualify row_number() over(partition by status_id)=1;
+
+CREATE OR REPLACE VIEW moonlit-album-339015.L1.L1_product AS
+SELECT
+id_product AS product_id --pk
+,name AS product_name
+,type AS product_type
+,category AS product_category
+FROM moonlit-album-339015.L0_google_sheets.L0_all_products
+qualify row_number() over ( partition by id_product)=1;
+
+/*****************source L0_accounting_system********************/
+
+CREATE OR REPLACE VIEW moonlit-album-339015.L1.L1_invoice AS
+SELECT
+id_invoice as invoice_id --pk
+,id_invoice_old as invoice_previous_id
+,invoice_id_contract as contract_id --fk
+,status as invoice_status_id
+,id_branch as branch_id -- fk
+-- Invoice status. Invoice status < 100 have been issued. >= 100 - not issued
+,IF(status>=100,TRUE,FALSE) as flag_invoice_issued
+,DATE(date,"Europe/Prague") as date_issue 
+,DATE(scadent,"Europe/Prague") as due_date 
+,DATE(date_paid,"Europe/Prague") as paid_date 
+,DATE(start_date,"Europe/Prague") as start_date
+,DATE(end_date,"Europe/Prague") as end_date
+,DATE(date_insert,"Europe/Prague") as insert_date
+,DATE(date_update,"Europe/Prague") as update_date
+,value as amount_w_vat
+,payed as amount_paid
+,flag_paid_currier as currier_flag
+,invoice_type as invoice_type_id 
+--invoice_type: 1- invoice,-3-credit_note,-2-return,4-other
+,CASE 
+    WHEN invoice_type=1 THEN 'invoice'
+    WHEN invoice_type=2 THEN 'return'
+    WHEN invoice_type=3 THEN 'credit_note'
+    WHEN invoice_type=4 THEN 'other'
+  END AS invoice_type
+ ,number as  invoice_number
+,value_storno as return_w_vat
+FROM 
+moonlit-album-339015.L0_accounting_system.L0_invoice;
+
+create or replace view moonlit-album-339015.L1.L1_invoice_load as
+select
+id_load as invoice_load_id,-- pk
+id_contract as contract_id, --fk
+CAST(id_package as INT) as product_purchase_id, --fk
+id_invoice as invoice_id, --fk
+CAST (id_package_template as INT) as product_id, --fk
+notlei as price_wo_vat_usd,
+tva as vat_rate,
+value as price_w_vat_usd,
+payed as paid_w_vat_usd,
+case 
+    when um IN ('mesia','m?síce','m?si?1ce','měsice','mesiace','měsíce','mesice') then  'month'
+    when um = "kus" then "item"
+    when um = "den" then 'day'
+    when um = '0' then null 
+    else um end AS unit,
+quantity as quantity,
+DATE(start_date,"Europe/Prague" )as start_date,
+DATE(end_date,"Europe/Prague") as end_date,
+DATE(date_insert,"Europe/Prague") as date_insert,
+DATE(date_update,"Europe/Prague")as date_update,
+from moonlit-album-339015.L0_accounting_system.L0_invoice_load;
+
+/*****************source L0_CRM********************/
+
+create or replace view moonlit-album-339015.L1.L1_product_purchase AS
+select 
+pp1.id_package as product_purchase_id --pk
+,pp1.id_contract as contract_id -- fk
+,pp1.id_package_template as product_id --pk
+,DATE(TIMESTAMP(pp1.date_insert),"Europe/Prague") as create_date
+,DATE(TIMESTAMP(pp1.start_date),"Europe/Prague") as product_valid_from
+,DATE(TIMESTAMP(pp1.end_date),"Europe/Prague") as product_valid_to
+,pp1.fee as price_wo_vat
+,DATE(TIMESTAMP(pp1.date_update),"Europe/Prague") as date_update,
+ case 
+    when pp1.measure_unit IN ('mesia','m?síce','m?si?1ce','měsice','mesiace','měsíce','mesice') then  "month"
+    when pp1.measure_unit = "kus" then "item"
+    when pp1.measure_unit = "den" then "day"
+    when pp1.measure_unit = '0' then "N/A" 
+    else pp1.measure_unit end AS unit
+,pp1.package_status as product_status_id --fk
+,s1.status_name as product_status
+,p1.product_name
+,p1.product_type
+,p1.product_category
+from moonlit-album-339015.L0_CRM.L0_product_purchaces pp1
+left join moonlit-album-339015.L1.L1_product p1 on p1.product_id=pp1.id_package_template
+left join moonlit-album-339015.L1.L1_status s1 on s1.status_id=pp1.package_status;
+
+create or replace view moonlit-album-339015.L1.L1_contract as
+Select
+id_contract as contract_id,--pk
+id_branch as branch_id,--fk
+DATE(TIMESTAMP(date_contract_valid_from),"Europe/Prague") as contract_valid_from,
+DATE(TIMESTAMP(date_contract_valid_to),"Europe/Prague") as contract_valid_to,
+DATE(TIMESTAMP(date_registered),"Europe/Prague") as registred_date,
+DATE(TIMESTAMP(date_signed),"Europe/Prague") as signed_date,
+DATE(TIMESTAMP(load_date),"Europe/Prague") as load_date,
+DATE(TIMESTAMP(activation_process_date),"Europe/Prague") as activation_process_date,
+DATE(TIMESTAMP(prolongation_date),"Europe/Prague") as prolongation_date,
+registration_end_reason as registration_end_reason,
+flag_prolongation as flag_prolongation,
+flag_send_inv_email as flag_send_email,
+contract_status as contract_status
+from moonlit-album-339015.L0_CRM.L0_contract ;

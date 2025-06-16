@@ -1,0 +1,79 @@
+create or replace view moonlit-album-339015.L2.L2_contract as
+select
+contract_id,
+branch_id,
+contract_valid_from,
+contract_valid_to,
+registred_date,
+signed_date,
+load_date,
+activation_process_date,
+prolongation_date,
+registration_end_reason,
+flag_prolongation,
+flag_send_email,
+contract_status
+from moonlit-album-339015.L1.L1_contract
+where registred_date is not null;
+
+create or replace view moonlit-album-339015.L2.L2_invoice as
+select
+Invoice_id,
+Invoice_previous_id,
+Contract_id,
+Invoice_type,
+IF (amount_w_vat<=0,0,amount_w_vat) as amount_w_vat,
+return_w_vat,
+IF (amount_w_vat<=0,0,amount_w_vat/1.2)  as Amount_wo_vat,
+date_issue,
+due_date,
+paid_date,
+start_date,
+end_date,
+insert_date,
+update_date,
+flag_invoice_issued,
+invoice_status_id,
+row_number() over (partition by Contract_id,date_issue order by date_issue asc) as invoice_order 
+from moonlit-album-339015.L1.L1_invoice
+where invoice_type="invoice"
+and flag_invoice_issued=TRUE;
+
+
+create or replace view moonlit-album-339015.L2.L2_product_purchase as
+select
+pp1.product_purchase_id,
+pp1.product_id,
+pp1.contract_id,
+pp1.product_category,
+pp1.product_status,
+pp1.price_wo_vat*1.2 as price_w_vat,
+pp1.price_wo_vat,
+IF((pp1.product_valid_from = '2035-12-31' or pp1.product_valid_from is null) , TRUE, FALSE) as flag_unlimited_product,
+pp1.product_valid_from,
+pp1.product_valid_to,
+pp1.unit,
+pp1.product_name,
+pp1.product_type,
+pp1.create_date,
+pp1.date_update
+from moonlit-album-339015.L1.L1_product_purchase pp1
+where pp1.product_status is not null
+and pp1.product_status not in ("disconnected","canceled","canceled contract","canceled registration")
+and pp1.product_category in ("product","rent");
+
+create or replace view moonlit-album-339015.L2.L2_product as
+select
+product_id,
+product_name,
+product_type,
+product_category
+from moonlit-album-339015.L1.L1_product
+where product_category in ("product","rent");
+
+create or replace view moonlit-album-339015.L2.L2_branch as
+select
+branch_id,
+branch_name
+from moonlit-album-339015.L1.L1_branch
+where branch_name not in ("unknown");
